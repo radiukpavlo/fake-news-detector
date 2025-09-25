@@ -163,15 +163,15 @@ class BertTinyClassifier(BaseModelInterface):
         test_enc = self.tokenizer(test_texts, truncation=True, padding="max_length", max_length=512, return_tensors="pt")
 
         train_dataset = torch.utils.data.TensorDataset(
-            train_enc["input_ids"], train_enc["attention_mask"], torch.tensor(train_labels)
+            train_enc["input_ids"], train_enc["attention_mask"], torch.tensor(train_labels, dtype=torch.long)
         )
         test_dataset = torch.utils.data.TensorDataset(
-            test_enc["input_ids"], test_enc["attention_mask"], torch.tensor(test_labels)
+            test_enc["input_ids"], test_enc["attention_mask"], torch.tensor(test_labels, dtype=torch.long)
         )
 
         training_args = TrainingArguments(
             output_dir="./results",
-            num_train_epochs=3,
+            num_train_epochs=20,
             per_device_train_batch_size=16,
             per_device_eval_batch_size=16,
             warmup_steps=500,
@@ -199,7 +199,7 @@ class BertTinyClassifier(BaseModelInterface):
 
         # збереження embeddings (CLS токен)
         with torch.no_grad():
-            inputs = self.tokenizer(texts, truncation=True, padding="max_length", max_length=512, return_tensors="pt")
+            inputs = self.tokenizer(texts, padding="max_length", max_length=512, truncation=True, return_tensors="pt")
             outputs = self.model.base_model(**inputs)
             # беремо перший токен [CLS] як ембедінг
             self.embeddings = outputs.last_hidden_state[:, 0, :].cpu().numpy()
@@ -215,11 +215,19 @@ class BertTinyClassifier(BaseModelInterface):
             "f1": f1_score(test_labels, y_pred, average="weighted"),
         }
 
+        try:
+            from app.db import load_all_news_ids
+            news_ids = load_all_news_ids()
+            if news_ids:
+                self.save_embeddings_and_predictions(news_ids, texts)
+        except Exception as e:
+            print("⚠️ Error saving predictions for bert-tiny:", e)
+
         self.fitted = True
         return metrics
 
     def predict(self, text):
-        enc = self.tokenizer(text, truncation=True, padding=True, return_tensors="pt")
+        enc = self.tokenizer(text, truncation=True, padding="max_length", max_length=512, return_tensors="pt")
         with torch.no_grad():
             outputs = self.model(**enc)
         probs = torch.nn.functional.softmax(outputs.logits, dim=-1).cpu().numpy()[0]
@@ -228,12 +236,12 @@ class BertTinyClassifier(BaseModelInterface):
     def is_trained(self):
         return self.fitted
 
-    def save_embeddings_and_predictions(self, news_ids):
+    def save_embeddings_and_predictions(self, news_ids, texts):
         # 1️⃣ Зберігаємо embeddings у БД
         save_embeddings_bulk(news_ids, self.embeddings, model_id="bert-tiny")
         # 2️⃣ Зберігаємо прогнозовані мітки
         for i, nid in enumerate(news_ids):
-            label, prob = self.predict(self.texts[i])
+            label, prob = self.predict(texts[i])
             save_predicted_label(nid, label, prob)
         # 3️⃣ t-SNE + UMAP
         try:
