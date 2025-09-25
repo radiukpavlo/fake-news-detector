@@ -159,8 +159,8 @@ class BertTinyClassifier(BaseModelInterface):
             texts, labels, test_size=test_size, stratify=labels, random_state=42
         )
 
-        train_enc = self.tokenizer(train_texts, truncation=True, padding=True, return_tensors="pt")
-        test_enc = self.tokenizer(test_texts, truncation=True, padding=True, return_tensors="pt")
+        train_enc = self.tokenizer(train_texts, truncation=True, padding="max_length", max_length=512, return_tensors="pt")
+        test_enc = self.tokenizer(test_texts, truncation=True, padding="max_length", max_length=512, return_tensors="pt")
 
         train_dataset = torch.utils.data.TensorDataset(
             train_enc["input_ids"], train_enc["attention_mask"], torch.tensor(train_labels)
@@ -199,7 +199,7 @@ class BertTinyClassifier(BaseModelInterface):
 
         # збереження embeddings (CLS токен)
         with torch.no_grad():
-            inputs = self.tokenizer(texts, truncation=True, padding=True, return_tensors="pt")
+            inputs = self.tokenizer(texts, truncation=True, padding="max_length", max_length=512, return_tensors="pt")
             outputs = self.model.base_model(**inputs)
             # беремо перший токен [CLS] як ембедінг
             self.embeddings = outputs.last_hidden_state[:, 0, :].cpu().numpy()
