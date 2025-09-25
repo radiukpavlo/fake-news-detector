@@ -111,7 +111,7 @@ def analyze_all(request: AnalyzeRequest, background_tasks: BackgroundTasks):
                 metrics = ml_model.train(texts=texts, labels=labels, test_size=getattr(request, "test_size", 0.3))
                 
                 if hasattr(ml_model, "save_embeddings_and_predictions"):
-                    ml_model.save_embeddings_and_predictions(news_ids=news_ids)
+                    ml_model.save_embeddings_and_predictions(news_ids=news_ids, texts=texts)
 
             else:
                 raise HTTPException(status_code=400, detail=f"Модель '{request.model_name}' не підтримує тренування")
