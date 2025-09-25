@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "WfWdyM7P5jY=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\СТЕФАНІЯ\\source\\repos\\RealFakeNews\\RealFakeNews\\RealFakeNews.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\СТЕФАНІЯ\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.2\\microsoft.aspnetcore.openapi.9.0.2.nupkg.sha512",
+    "C:\\Users\\СТЕФАНІЯ\\.nuget\\packages\\microsoft.openapi\\1.6.17\\microsoft.openapi.1.6.17.nupkg.sha512"
+  ],
+  "logs": []
+}

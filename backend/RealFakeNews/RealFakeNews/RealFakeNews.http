@@ -1,0 +1,6 @@
+@RealFakeNews_HostAddress = http://localhost:5175
+
+GET {{RealFakeNews_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

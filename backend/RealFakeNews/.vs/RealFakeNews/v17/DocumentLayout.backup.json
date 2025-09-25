@@ -1,0 +1,69 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\\u0421\u0422\u0415\u0424\u0410\u041D\u0406\u042F\\source\\repos\\RealFakeNews\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{AE5E6836-08BD-417C-A9E8-0A9B4518B8D9}|RealFakeNews\\RealFakeNews.csproj|c:\\users\\\u0441\u0442\u0435\u0444\u0430\u043D\u0456\u044F\\source\\repos\\realfakenews\\realfakenews\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{AE5E6836-08BD-417C-A9E8-0A9B4518B8D9}|RealFakeNews\\RealFakeNews.csproj|solutionrelative:realfakenews\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{AE5E6836-08BD-417C-A9E8-0A9B4518B8D9}|RealFakeNews\\RealFakeNews.csproj|c:\\users\\\u0441\u0442\u0435\u0444\u0430\u043D\u0456\u044F\\source\\repos\\realfakenews\\realfakenews\\controllers\\mlcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{AE5E6836-08BD-417C-A9E8-0A9B4518B8D9}|RealFakeNews\\RealFakeNews.csproj|solutionrelative:realfakenews\\controllers\\mlcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{AE5E6836-08BD-417C-A9E8-0A9B4518B8D9}|RealFakeNews\\RealFakeNews.csproj|c:\\users\\\u0441\u0442\u0435\u0444\u0430\u043D\u0456\u044F\\source\\repos\\realfakenews\\realfakenews\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{AE5E6836-08BD-417C-A9E8-0A9B4518B8D9}|RealFakeNews\\RealFakeNews.csproj|solutionrelative:realfakenews\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\\u0421\u0422\u0415\u0424\u0410\u041D\u0406\u042F\\source\\repos\\RealFakeNews\\RealFakeNews\\appsettings.json",
+              "RelativeDocumentMoniker": "RealFakeNews\\appsettings.json",
+              "ToolTip": "C:\\Users\\\u0421\u0422\u0415\u0424\u0410\u041D\u0406\u042F\\source\\repos\\RealFakeNews\\RealFakeNews\\appsettings.json",
+              "RelativeToolTip": "RealFakeNews\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-09-09T13:41:08.391Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "MLController.cs",
+              "DocumentMoniker": "C:\\Users\\\u0421\u0422\u0415\u0424\u0410\u041D\u0406\u042F\\source\\repos\\RealFakeNews\\RealFakeNews\\Controllers\\MLController.cs",
+              "RelativeDocumentMoniker": "RealFakeNews\\Controllers\\MLController.cs",
+              "ToolTip": "C:\\Users\\\u0421\u0422\u0415\u0424\u0410\u041D\u0406\u042F\\source\\repos\\RealFakeNews\\RealFakeNews\\Controllers\\MLController.cs",
+              "RelativeToolTip": "RealFakeNews\\Controllers\\MLController.cs",
+              "ViewState": "AgIAAC0AAAAAAAAAAAAmwDIAAAAfAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-09T13:39:52.593Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\\u0421\u0422\u0415\u0424\u0410\u041D\u0406\u042F\\source\\repos\\RealFakeNews\\RealFakeNews\\Program.cs",
+              "RelativeDocumentMoniker": "RealFakeNews\\Program.cs",
+              "ToolTip": "C:\\Users\\\u0421\u0422\u0415\u0424\u0410\u041D\u0406\u042F\\source\\repos\\RealFakeNews\\RealFakeNews\\Program.cs",
+              "RelativeToolTip": "RealFakeNews\\Program.cs",
+              "ViewState": "AgIAAAQAAAAAAAAAAAAmwA4AAAAVAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-08T14:53:02.669Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
