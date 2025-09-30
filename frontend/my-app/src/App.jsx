@@ -1,337 +1,286 @@
-import React, { useState} from "react";
-import Visualization from "./Visualization";
+﻿import React, { useEffect, useMemo, useState } from "react";
+import "./App.css";
+
+const API_BASE = process.env.REACT_APP_API_URL ?? "http://localhost:5000";
+const DEFAULT_MODELS = ["roberta-base", "roberta-large"];
+
+const toDisplayMetric = (value) =>
+  typeof value === "number" ? value.toFixed(3) : "-";
 
 export default function App() {
-  const [files, setFiles] = useState([]);
-  const [newsText, setNewsText] = useState("");
-  const [output, setOutput] = useState(null);
-  const [modelTrained, setModelTrained] = useState(false);
+  const [availableModels, setAvailableModels] = useState(DEFAULT_MODELS);
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODELS[0]);
+  const [downloadDataset, setDownloadDataset] = useState(false);
+  const [trainingStatus, setTrainingStatus] = useState(null);
+  const [isPolling, setIsPolling] = useState(false);
   const [metrics, setMetrics] = useState(null);
-  const [randomResult, setRandomResult] = useState(null);
-  const [explanations, setExplanations] = useState({});
-  const [plotDataUMAP, setPlotDataUMAP] = useState(null);
-  const [plotDataTSNE, setPlotDataTSNE] = useState(null);
-  const [selectedModel, setSelectedModel] = useState("logreg");
-  const [testSize, setTestSize] = useState(0.3);
+  const [predictionText, setPredictionText] = useState("");
+  const [predictionResult, setPredictionResult] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
 
-  const callApi = async (url, method = "GET", body = null, setFunc = setOutput) => {
-    const opts = { method, headers: { "Content-Type": "application/json" } };
-    if (body) opts.body = JSON.stringify(body);
+  const apiPath = (path) => `${API_BASE}/api/ml${path}`;
+
+  const callApi = async (path, options = {}) => {
+    const { headers, body, ...rest } = options;
+    const requestInit = { ...rest };
+
+    if (body !== undefined) {
+      requestInit.body = body;
+      requestInit.headers = {
+        "Content-Type": "application/json",
+        ...(headers ?? {}),
+      };
+    } else if (headers) {
+      requestInit.headers = headers;
+    }
+
+    const response = await fetch(apiPath(path), requestInit);
+    const contentType = response.headers.get("content-type");
+    const isJson = contentType && contentType.includes("application/json");
+    const payload = isJson ? await response.json() : await response.text();
+
+    if (!response.ok) {
+      const message = typeof payload === "string" ? payload : payload?.detail ?? "Request failed";
+      throw new Error(message);
+    }
+
+    return payload;
+  };
+
+  const fetchAvailableModels = async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}${url}`, opts);
-      const data = await res.json();
-      setFunc(data);
-    } catch (err) {
-      console.error("API error:", err);
-      setFunc({ error: "Помилка підключення до API" });
+      const data = await callApi("/models");
+      if (Array.isArray(data.models) && data.models.length) {
+        setAvailableModels((prev) => {
+          const merged = Array.from(new Set([...DEFAULT_MODELS, ...prev, ...data.models]));
+          merged.sort();
+          if (!merged.includes(selectedModel)) {
+            setSelectedModel(merged[0]);
+          }
+          return merged;
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to fetch model list", error);
     }
   };
 
-  // --- Завантаження файлів ---
-  const handleFileUpload = (event) => {
-    setFiles(Array.from(event.target.files));
+  useEffect(() => {
+    fetchAvailableModels();
+  }, []);
+
+  useEffect(() => {
+    if (!isPolling) {
+      return undefined;
+    }
+
+    let timerId;
+
+    const poll = async () => {
+      try {
+        const status = await callApi(`/train/status/${selectedModel}`);
+        setTrainingStatus(status);
+
+        if (status.state === "in_progress") {
+          timerId = setTimeout(poll, 2000);
+        } else {
+          setIsPolling(false);
+          if (status.state === "completed" && status.summary?.evaluation) {
+            setMetrics({
+              model_name: selectedModel,
+              report: {},
+              summary: status.summary,
+            });
+            fetchAvailableModels();
+          }
+        }
+      } catch (error) {
+        setIsPolling(false);
+        setErrorMessage(error.message);
+      }
+    };
+
+    poll();
+    return () => clearTimeout(timerId);
+  }, [isPolling, selectedModel]);
+
+  const startTraining = async () => {
+    setErrorMessage(null);
+    setTrainingStatus({ state: "starting" });
+    setMetrics(null);
+
+    try {
+      await callApi("/train", {
+        method: "POST",
+        body: JSON.stringify({
+          modelName: selectedModel,
+          downloadDataset,
+        }),
+      });
+      setIsPolling(true);
+    } catch (error) {
+      setErrorMessage(error.message);
+      setTrainingStatus(null);
+    }
   };
 
-  const handleUpload = async () => {
-    if (!files.length) {
-      alert("Будь ласка, виберіть файли для завантаження");
+  const refreshStatus = async () => {
+    setErrorMessage(null);
+    try {
+      const status = await callApi(`/train/status/${selectedModel}`);
+      setTrainingStatus(status);
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  };
+
+  const loadMetrics = async () => {
+    setErrorMessage(null);
+    setMetrics(null);
+    try {
+      const data = await callApi(`/metrics/${selectedModel}`);
+      setMetrics(data);
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  };
+
+  const runPrediction = async () => {
+    setErrorMessage(null);
+    setPredictionResult(null);
+
+    if (!predictionText.trim()) {
+      setErrorMessage("Please provide text to analyse.");
       return;
     }
-    const formData = new FormData();
-    files.forEach((file) => formData.append("files", file));
 
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/ml/preprocess`, {
+      const result = await callApi("/predict", {
         method: "POST",
-        body: formData,
+        body: JSON.stringify({
+          modelName: selectedModel,
+          text: predictionText,
+        }),
       });
-
-      if (!res.ok) throw new Error("Помилка сервера");
-
-      const data = await res.json();
-      console.log("✅ Файли надіслані:", data);
-      alert("Файли успішно надіслані!");
-    } catch (err) {
-      console.error("Upload error:", err);
-      alert("❌ Помилка відправки файлів");
+      setPredictionResult(result);
+    } catch (error) {
+      setErrorMessage(error.message);
     }
   };
 
-  // --- Тренування моделі ---
-  const handleAnalyze = async () => {
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/ml/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ test_size: testSize, model_name: selectedModel}),
-      });
-      if (!res.ok) throw new Error("Не вдалося запустити тренування");
-
-      setModelTrained(false);
-      setMetrics(null);
-
-      const pollStatus = async () => {
-        try {
-          const statusRes = await fetch(`${process.env.REACT_APP_API_URL}/api/ml/analyze/status?model_name=${selectedModel}`);
-          const statusData = await statusRes.json();
-
-          if (!statusData.running) {
-            setModelTrained(true);
-            setMetrics(statusData.metrics || {});
-
-            await fetchVisualization("UMAP", setPlotDataUMAP);
-            await fetchVisualization("TSNE", setPlotDataTSNE);
-            console.log("✅ Тренування завершено", statusData.metrics);
-          } else {
-            setTimeout(pollStatus, 2000);
-          }
-        } catch (err) {
-          console.error("Помилка при отриманні статусу:", err);
-        }
-      };
-
-      pollStatus();
-    } catch (err) {
-      console.error("Analyze error:", err);
-      alert("Помилка при тренуванні моделі");
+  const aggregateMetrics = useMemo(() => {
+    if (!metrics?.summary?.evaluation) {
+      return null;
     }
-  };
-
-  // --- Прогноз ---
-  const handleRandomPredict = async () => {
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/ml/random_predict`);
-      const data = await res.json();
-      setRandomResult(data);
-
-      
-    } catch (err) {
-      console.error("Random predict error:", err);
-      alert("Помилка при отриманні прогнозу");
-    }
-  };
-
-  // --- Пояснення ---
-  const fetchExplanation = async (method) => {
-    await callApi(`/api/ml/interpret/${method}`, "GET", null, (data) => {
-      setExplanations((prev) => ({ ...prev, [method]: data }));
-    });
-  };
-
-  // --- Візуалізація ---
-  const fetchVisualization = async (method, setData) => {
-    console.log(`🔹 Fetching visualization: ${method}`);
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/ml/visualize/${method}`);
-      const data = await res.json();
-      console.log("📌 Visualization data:", data);
-
-      // якщо немає точок → нічого не зберігаємо
-      if (!data.points || data.points.length === 0) {
-        console.warn(`⚠️ No projection points for ${method}`);
-        setData(null);
-        return false;
-      }
-
-      setData(data); // зберігаємо повний JSON (ids, points, labels, predicted_labels)
-      return true;
-    } catch (err) {
-      console.error(`❌ Fetch error for ${method}:`, err);
-      setData(null);
-      return false;
-    }
-  };
+    return metrics.summary.evaluation;
+  }, [metrics]);
 
   return (
-    <div className="flex h-screen">
-      {/* Ліва панель */}
-      <div className="w-1/2 p-6 border-r border-gray-300 overflow-y-auto">
-        <h1 className="text-2xl font-bold mb-4">Fake News Detection</h1>
+    <div className="app-shell">
+      <header>
+        <h1>Fake News Detector</h1>
+        <p>Train a transformer-based classifier and evaluate news snippets.</p>
+      </header>
 
-        {/* Завантаження файлів */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold">Завантаження файлів</h2>
-          <input type="file" multiple onChange={handleFileUpload} />
-          <input
-            type="file"
-            webkitdirectory="true"
-            directory=""
-            multiple
-            onChange={handleFileUpload}
-            style={{ display: "block", marginTop: "10px" }}
-          />
-          <button
-            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
-            onClick={handleUpload}
+      <section className="card">
+        <h2>Model Configuration</h2>
+        <div className="field">
+          <label htmlFor="model-select">Model</label>
+          <select
+            id="model-select"
+            value={selectedModel}
+            onChange={(event) => setSelectedModel(event.target.value)}
           >
-            Відправити у бекенд
-          </button>
-        </div>
-
-        {/* Навчання моделі */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold">ML Модель</h2>
-
-          <div className="mb-2">
-            <label className="mr-2">Модель:</label>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="border p-1 rounded"
-            >
-              <option value="logreg">Logistic Regression (через BERT-ембедінги)</option>
-              <option value="bert-tiny">BERT-tiny fine-tuned (mrm8488)</option>
-            </select>
-          </div>
-
-          <div className="mb-2">
-            <label className="mr-2">Test size:</label>
-            <select
-              value={testSize}
-              onChange={(e) => setTestSize(parseFloat(e.target.value))}
-              className="border p-1 rounded"
-            >
-              <option value={0.2}>20%</option>
-              <option value={0.25}>25%</option>
-              <option value={0.3}>30%</option>
-              <option value={0.4}>40%</option>
-            </select>
-          </div>
-          <button
-            className="px-4 py-2 bg-green-500 text-white rounded mr-2"
-            onClick={handleAnalyze}
-          >
-            Навчити модель
-          </button>
-
-          <button
-            className="px-4 py-2 bg-purple-500 text-white rounded"
-            onClick={handleRandomPredict}
-            disabled={!modelTrained}
-          >
-            Рандомний прогноз
-          </button>
-        </div>
-
-        {/* Метрики */}
-        {metrics && (
-          <div className="mb-6 p-4 bg-gray-100 border rounded">
-            <h3 className="font-semibold">📊 Метрики моделі</h3>
-            <ul>
-              <li>Accuracy: {Number(metrics.accuracy).toFixed(3)}</li>
-              <li>Precision: {Number(metrics.precision).toFixed(3)}</li>
-              <li>Recall: {Number(metrics.recall).toFixed(3)}</li>
-              <li>F1-score: {Number(metrics.f1).toFixed(3)}</li>
-            </ul>
-          </div>
-        )}
-
-        {/* Рандомний прогноз */}
-        {randomResult && (
-          <div className="mb-6 p-4 bg-gray-100 border rounded">
-            <h3 className="font-semibold">🎲 Рандомний прогноз</h3>
-            <p><b>Текст новини:</b> {randomResult.text.slice(0, 200)}...</p>
-            <p><b>Прогноз:</b> {randomResult.prediction.predicted_label}</p>
-            <p><b>Впевненість:</b> {(randomResult.prediction.probability * 100).toFixed(2)}%</p>
-            <p><b>Справжня мітка:</b> {randomResult.true_label}</p>
-          </div>
-        )}
-
-        {/* Введення тексту */}
-        <div className="mb-6">
-          <textarea
-            className="border w-full p-2 rounded"
-            placeholder="Введіть текст новини..."
-            value={newsText}
-            onChange={(e) => setNewsText(e.target.value)}
-          />
-          <button
-            className="mt-2 px-4 py-2 bg-indigo-500 text-white rounded"
-            onClick={() =>
-              callApi("/api/ml/predict", "POST", { news_text: newsText })
-            }
-            disabled={!modelTrained}
-          >
-            Прогноз для введеного тексту
-          </button>
-        </div>
-
-        {/* Вивід */}
-        {output && (
-          <pre className="mt-4 p-2 bg-gray-100 border rounded">
-            {JSON.stringify(output, null, 2)}
-          </pre>
-        )}
-      </div>
-
-      {/* Права панель */}
-      <div className="w-1/2 p-6 overflow-y-auto">
-        <h1 className="text-xl font-bold mb-4">Інтерпретація</h1>
-
-        <h2 className="text-xl font-bold mb-4">Візуалізація</h2>
-
-        <div className="visualizations">
-          {plotDataUMAP && (
-            <>
-              <h3>UMAP — Справжні мітки</h3>
-              <Visualization data={plotDataUMAP} labelType="label" />
-
-              <h3>UMAP — Прогнозовані мітки</h3>
-              <Visualization data={plotDataUMAP} labelType="predicted_label" />
-            </>
-          )}
-
-          {plotDataTSNE && (
-            <>
-              <h3>t-SNE — Справжні мітки</h3>
-              <Visualization data={plotDataTSNE} labelType="label" />
-
-              <h3>t-SNE — Прогнозовані мітки</h3>
-              <Visualization data={plotDataTSNE} labelType="predicted_label" />
-            </>
-          )}
-        </div>
-
-        {/* Кнопки пояснень */}
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold">Пояснення</h2>
-          <div className="flex gap-2 mt-2">
-            <button
-              className="px-3 py-1 bg-yellow-500 text-white rounded"
-              onClick={() => fetchExplanation("shap")}
-            >
-              SHAP
-            </button>
-            <button
-              className="px-3 py-1 bg-red-500 text-white rounded"
-              onClick={() => fetchExplanation("ig")}
-            >
-              IG
-            </button>
-            <button
-              className="px-3 py-1 bg-gray-700 text-white rounded"
-              onClick={() => fetchExplanation("tcav")}
-            >
-              TCAV
-            </button>
-          </div>
-        </div>
-
-        {/* Вивід пояснень */}
-        {Object.keys(explanations).length > 0 && (
-          <div className="mt-4">
-            {Object.entries(explanations).map(([method, data]) => (
-              <div key={method} className="mb-4">
-                <h4 className="font-semibold">{method.toUpperCase()}</h4>
-                <pre className="bg-gray-100 p-2 rounded">
-                  {JSON.stringify(data, null, 2)}
-                </pre>
-              </div>
+            {availableModels.map((model) => (
+              <option key={model} value={model}>
+                {model}
+              </option>
             ))}
+          </select>
+        </div>
+
+        <div className="checkbox">
+          <input
+            id="download"
+            type="checkbox"
+            checked={downloadDataset}
+            onChange={(event) => setDownloadDataset(event.target.checked)}
+          />
+          <label htmlFor="download">Download dataset from Kaggle before training</label>
+        </div>
+
+        <div className="actions">
+          <button onClick={startTraining} disabled={isPolling}>
+            Start Training
+          </button>
+          <button onClick={refreshStatus}>Check Status</button>
+          <button onClick={loadMetrics}>Load Metrics</button>
+        </div>
+
+        {trainingStatus && (
+          <div className="status">
+            <strong>Status:</strong> {trainingStatus.state}
           </div>
         )}
-      </div>
 
+        {isPolling && <p className="info">Training in progress… polling status.</p>}
+      </section>
+
+      <section className="card">
+        <h2>Evaluate Model</h2>
+        {aggregateMetrics ? (
+          <ul className="metrics">
+            <li>
+              <span>Accuracy</span>
+              <span>{toDisplayMetric(aggregateMetrics.accuracy)}</span>
+            </li>
+            <li>
+              <span>Precision</span>
+              <span>{toDisplayMetric(aggregateMetrics.precision)}</span>
+            </li>
+            <li>
+              <span>Recall</span>
+              <span>{toDisplayMetric(aggregateMetrics.recall)}</span>
+            </li>
+            <li>
+              <span>F1</span>
+              <span>{toDisplayMetric(aggregateMetrics.f1)}</span>
+            </li>
+            <li>
+              <span>ROC AUC</span>
+              <span>{toDisplayMetric(aggregateMetrics.roc_auc)}</span>
+            </li>
+          </ul>
+        ) : (
+          <p className="info">Metrics will appear here once generated.</p>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Predict</h2>
+        <textarea
+          value={predictionText}
+          onChange={(event) => setPredictionText(event.target.value)}
+          placeholder="Enter a news headline or snippet"
+        />
+        <div className="actions">
+          <button onClick={runPrediction}>Analyse</button>
+        </div>
+        {predictionResult && (
+          <div className="prediction">
+            <p>
+              <strong>Prediction:</strong> {predictionResult.label}
+            </p>
+            <p>
+              <strong>Confidence:</strong> {toDisplayMetric(predictionResult.confidence)}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {errorMessage && (
+        <div className="error">Error: {errorMessage}</div>
+      )}
     </div>
   );
 }

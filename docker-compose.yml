@@ -1,65 +1,37 @@
-# version: "3.9"
-
-services:
+﻿services:
   frontend:
     build: ./frontend/my-app
     container_name: frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
     environment:
       - REACT_APP_API_URL=http://localhost:5000
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3000:3000"
 
   backend:
     build: ./backend
     container_name: backend
-    ports:
-      - "5000:5000"
-    depends_on:
-      - ml-service
     environment:
       - ASPNETCORE_URLS=http://+:5000
       - ML_SERVICE_URL=http://ml-service:8000
-
-  db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_DB: fakenewsdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 100317
+    depends_on:
+      ml-service:
+        condition: service_healthy
     ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d fakenewsdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      - "5000:5000"
 
   ml-service:
     build: ./ml-service
     container_name: ml-service
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: 100317
-      DB_NAME: fakenewsdb
+      - PYTHONUNBUFFERED=1
     command: ["./start.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 5s
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0)"]
+      interval: 10s
       timeout: 5s
       retries: 5
-
-volumes:
-  db_data:
-
+    ports:
+      - "8000:8000"

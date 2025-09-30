@@ -1,11 +1,11 @@
 fastapi
 uvicorn
-pydantic
-torch
 transformers
-scikit-learn
+torch
 pandas
-kaggle
+scikit-learn
 matplotlib
 seaborn
 python-multipart
+pydantic
+kaggle

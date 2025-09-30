@@ -1,0 +1,13 @@
+﻿# Build artefacts
+backend/RealFakeNews/bin/
+backend/RealFakeNews/obj/
+frontend/my-app/node_modules/
+frontend/my-app/build/
+
+# Python caches and virtual environments
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Kaggle credentials (place manually when running locally)
+ml-service/.kaggle/

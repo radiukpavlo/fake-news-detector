@@ -12,4 +12,5 @@ venv/
 *.log
 *.csv
 *.txt
+!requirements.txt
 models/

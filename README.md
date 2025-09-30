@@ -1,63 +1,81 @@
-# README
+﻿# Fake News Detector
 
-# Огляд проєкту
+A containerised demo that trains and serves a transformer-based fake-news classifier. The stack is composed of:
 
-Проєкт поділено на три основні компоненти:
+- **frontend** – React SPA for training and inference
+- **backend** – ASP.NET Core API that proxies requests to the ML service
+- **ml-service** – FastAPI application wrapping Hugging Face models
 
-1. **Фронтенд** – реалізований на **React**.
-2. **Бекенд** – API на **ASP.NET Core**, що забезпечує комунікацію між фронтендом та ML-сервісом.
-3. **ML-сервіс** – основна логіка програми, написана на **Python**.
+## Prerequisites
 
----
+- Docker Desktop (Compose v2)
+- Optional: Kaggle API token at `ml-service/.kaggle/kaggle.json` if you want the service to download the LIAR dataset automatically.
 
-## Фронтенд
+## Quick start
 
-Головні файли для відображення інтерфейсу користувача:
+```bash
+# from the repository root
+docker compose build
+docker compose up -d
+```
 
-* **`App.jsx`** – відповідає за головну візуальну сторінку застосунку та підключається до бекенд-ендпоїнтів.
-* **`Visualization.jsx`** – обробляє відображення візуалізацій, таких як проєкції **UMAP** та **t-SNE**.
+Services exposed locally:
 
-Фронтенд забезпечує взаємодію користувача із системою та візуалізацію результатів моделей.
+| Service   | URL                     |
+|-----------|-------------------------|
+| Frontend  | http://localhost:3000   |
+| Backend   | http://localhost:5000   |
+| ML API    | http://localhost:8000   |
 
----
+### Training a model
 
-## Бекенд
+1. Open `http://localhost:3000`.
+2. Choose a model (`roberta-base` or `roberta-large`).
+3. Optionally tick “Download dataset from Kaggle” (requires valid credentials inside the container).
+4. Click **Start Training** and monitor progress.
 
-Бекенд відповідає за доставку запитів від фронтенду до ML-сервісу.
+Metrics and plots are written to `ml-service/output/<model-name>/`.
 
-* **`MLController.cs`** – основний файл, що обробляє запити від фронтенду та викликає відповідні методи ML-сервісу.
+### Predicting
 
-Бекенд виконує роль проміжного шару між UI та моделями, забезпечуючи логіку обробки запитів та відповідей.
+Once training completes, type a news headline/snippet in the text box and click **Analyse** to see the model prediction and confidence.
 
----
+## Development workflow
 
-## ML-сервіс
+Run the backend and ML service without Docker:
 
-ML-сервіс відповідає за всю логіку роботи програми та включає кілька ключових файлів:
+```bash
+# backend
+cd backend/RealFakeNews
+dotnet run
 
-* **`model.py`** – реалізація двох моделей, що використовуються в проєкті:
+# ml-service
+cd ml-service
+uvicorn main:app --reload --port 8000
+```
 
-  * **Sentence-BERT + Logistic Regression**
-  * **BERT-Tiny Classifier** (попередньо натренована модель для класифікації фейкових новин)
-    Файл включає логіку навчання моделей.
+Then start the frontend:
 
-* **`main.py`** – містить усі ендпоїнти ML-сервісу:
+```bash
+cd frontend/my-app
+npm install
+npm start
+```
 
-  * Обробка та попередня обробка даних
-  * Навчання моделей
-  * Вивід випадкового тексту з прогнозом моделі, ймовірністю та справжнім класом
-  * Генерація візуалізацій UMAP та t-SNE
-  * Створення пояснень рішень моделей (interpretability)
+Update `REACT_APP_API_URL` if the backend runs on a non-default host/port.
 
-* **`db.py`** – функції для запису даних у базу **PostgreSQL**. Не створює таблиці та базу, лише вставляє дані.
+## Project structure
 
-* **`preprocess.py`** – обробка даних із датасету **FakeNewsNet** (з Kaggle).
+```
+.
+├── backend           # ASP.NET Core proxy API
+├── frontend          # React single page app
+├── ml-service        # FastAPI + Hugging Face models
+└── docker-compose.yml
+```
 
-* **`requirements.txt`** – список бібліотек, що використовуються у проєкті.
+## Known limitations
 
----
-
-## Docker
-
-* **`docker-compose.yml`** – координує роботу всіх частин проєкту: фронтенду, бекенду та ML-сервісу.
-* Вказує, які сервіси на які порти запускаються та як вони взаємодіють між собою.
+- A GPU is not required but training large models on CPU can be slow.
+- Kaggle downloads fail unless credentials are present in `ml-service/.kaggle/kaggle.json`.
+- The sample React styles use basic CSS; feel free to replace with a design system of your choice.
