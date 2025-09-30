@@ -142,9 +142,9 @@ class FakeNewsClassifier(BaseModelInterface):
         self.train_running = False
 
 
-# ====== BERT-Tiny Classifier ======
-class BertTinyClassifier(BaseModelInterface):
-    def __init__(self, model_name="mrm8488/bert-tiny-finetuned-fake-news-detection"):
+# ====== Transformer Classifier ======
+class TransformerClassifier(BaseModelInterface):
+    def __init__(self, model_name="FacebookAI/roberta-base"):
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
@@ -171,13 +171,15 @@ class BertTinyClassifier(BaseModelInterface):
 
         training_args = TrainingArguments(
             output_dir="./results",
-            num_train_epochs=20,
+            num_train_epochs=3, # Зменшено кількість епох
             per_device_train_batch_size=16,
             per_device_eval_batch_size=16,
             warmup_steps=500,
             weight_decay=0.01,
             logging_dir="./logs",
-            evaluation_strategy="epoch"
+            evaluation_strategy="epoch",
+            learning_rate=5e-5, # Додано learning rate
+            load_best_model_at_end=True, # Завантажувати найкращу модель в кінці
         )
 
         def collate_fn(batch):
@@ -215,14 +217,6 @@ class BertTinyClassifier(BaseModelInterface):
             "f1": f1_score(test_labels, y_pred, average="weighted"),
         }
 
-        try:
-            from app.db import load_all_news_ids
-            news_ids = load_all_news_ids()
-            if news_ids:
-                self.save_embeddings_and_predictions(news_ids, texts)
-        except Exception as e:
-            print("⚠️ Error saving predictions for bert-tiny:", e)
-
         self.fitted = True
         return metrics
 
@@ -236,9 +230,44 @@ class BertTinyClassifier(BaseModelInterface):
     def is_trained(self):
         return self.fitted
 
+    def explain_shap(self, texts):
+        """
+        Explains the model's prediction using SHAP.
+        This implementation is specific to Hugging Face transformer models.
+        """
+        if not self.fitted:
+            raise Exception("Model is not trained yet.")
+
+        # SHAP explainer for transformers
+        explainer = shap.Explainer(self.model, self.tokenizer)
+
+        # We expect a list of texts, but the endpoint sends one at a time.
+        if not texts:
+            return []
+
+        shap_values = explainer(texts)
+
+        # We'll format the output to be more useful for visualization, including tokens.
+        output = []
+        for i in range(len(texts)):
+            explanation = shap_values[i]
+            base_value = explanation.base_values[1]
+            if hasattr(base_value, 'item'):
+                base_value = base_value.item()
+
+            output.append({
+                "tokens": explanation.data.tolist(),
+                "values": explanation.values[:, 1].tolist(), # SHAP values for "fake" class (index 1)
+                "base_value": base_value
+            })
+
+        # The current API from main.py sends a list with one text.
+        # So we return the first (and only) explanation.
+        return output[0] if output else None
+
     def save_embeddings_and_predictions(self, news_ids, texts):
         # 1️⃣ Зберігаємо embeddings у БД
-        save_embeddings_bulk(news_ids, self.embeddings, model_id="bert-tiny")
+        save_embeddings_bulk(news_ids, self.embeddings, model_id="transformer")
         # 2️⃣ Зберігаємо прогнозовані мітки
         for i, nid in enumerate(news_ids):
             label, prob = self.predict(texts[i])

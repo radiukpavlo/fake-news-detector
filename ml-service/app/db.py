@@ -154,26 +154,15 @@ def save_projection_points(news_ids, method, coords, meta=None):
     conn.close()
     print(f"💾 ProjectionPoints ({method}) збережено: {len(news_ids)} записів.")
 
-def load_all_texts():
+def load_training_data():
+    """Завантажує дані для тренування (id, text, label), відсортовані за ID."""
     engine = create_engine("postgresql+psycopg2://postgres:100317@db/fakenewsdb")
-    df = pd.read_sql(
-        "SELECT n.text FROM NewsItem n JOIN Label l ON n.id = l.news_id WHERE l.predicted_label IS NULL;",
-        engine
-    )
-    return df["text"].tolist() if not df.empty else []
-
-def load_all_labels():
-    engine = create_engine("postgresql+psycopg2://postgres:100317@db/fakenewsdb")
-    df = pd.read_sql(
-        "SELECT l.label FROM NewsItem n JOIN Label l ON n.id = l.news_id WHERE l.predicted_label IS NULL;",
-        engine
-    )
-    return df["label"].tolist() if not df.empty else []
-
-def load_all_news_ids():
-    engine = create_engine("postgresql+psycopg2://postgres:100317@db/fakenewsdb")
-    df = pd.read_sql(
-        "SELECT n.id FROM NewsItem n JOIN Label l ON n.id = l.news_id WHERE l.predicted_label IS NULL;",
-        engine
-    )
-    return df["id"].tolist() if not df.empty else []
+    query = """
+        SELECT n.id, n.text, l.label
+        FROM NewsItem n
+        JOIN Label l ON n.id = l.news_id
+        WHERE l.predicted_label IS NULL
+        ORDER BY n.id;
+    """
+    df = pd.read_sql(query, engine)
+    return df

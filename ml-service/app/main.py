@@ -3,7 +3,7 @@ from typing import List
 import pandas as pd
 from app.preprocess import clean_text, preprocess_dataset
 from app.db import save_news_and_labels, save_explanation
-from app.model import FakeNewsClassifier, BertTinyClassifier
+from app.model import FakeNewsClassifier, TransformerClassifier
 from sqlalchemy import create_engine, text
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +23,7 @@ app.add_middleware(
 # ====== Моделі ======
 models = {
     "logreg": FakeNewsClassifier(),
-    "bert-tiny": BertTinyClassifier()
+    "transformer": TransformerClassifier()
 }
 
 model_status = {name: {"running": False, "metrics": None, "ready": False} for name in models.keys()}
@@ -36,14 +36,14 @@ def get_model(name: str):
 # ====== Pydantic Models ======
 class PredictRequest(BaseModel):
     news_text: str
-    model_name: str = Field("logreg", description="Назва моделі: logreg або bert-tiny")
+    model_name: str = Field("logreg", description="Назва моделі: logreg або transformer")
     
     class Config:
         protected_namespaces = ()
 
 
 class AnalyzeRequest(BaseModel):
-    model_name: str = Field("logreg", description="Назва моделі: logreg або bert-tiny")
+    model_name: str = Field("logreg", description="Назва моделі: logreg або transformer")
     test_size: float = Field(0.3, alias="testSize")
     max_iter: int = 10
     C: float = 1.0
@@ -97,16 +97,17 @@ def analyze_all(request: AnalyzeRequest, background_tasks: BackgroundTasks):
                 )
                 metrics = getattr(ml_model, "train_metrics", None)
 
-            # --- BertTinyClassifier ---
+            # --- TransformerClassifier ---
             elif hasattr(ml_model, "train"):
-                from app.db import load_all_texts, load_all_labels, load_all_news_ids
+                from app.db import load_training_data
 
-                texts = load_all_texts()
-                labels = load_all_labels()
-                news_ids = load_all_news_ids()
-
-                if not texts or not labels or not news_ids:
+                df = load_training_data()
+                if df.empty:
                     raise HTTPException(status_code=400, detail="Немає даних для тренування")
+
+                texts = df["text"].tolist()
+                labels = df["label"].tolist()
+                news_ids = df["id"].tolist()
 
                 metrics = ml_model.train(texts=texts, labels=labels, test_size=getattr(request, "test_size", 0.3))
                 
@@ -138,7 +139,7 @@ def analyze_all(request: AnalyzeRequest, background_tasks: BackgroundTasks):
     }
 
 @app.get("/analyze/status")
-def analyze_status(model_name: str = Query("logreg", description="Назва моделі")):
+def analyze_status(model_name: str = Query("logreg", description="Назва моделі: logreg або transformer")):
     status = model_status.get(model_name)
     if not status:
         raise HTTPException(status_code=400, detail=f"Unknown model '{model_name}'")
@@ -159,7 +160,7 @@ def predict(req: PredictRequest):
 
 
 @app.get("/random_predict")
-def random_predict(model_name: str = Query("logreg", description="Назва моделі")):
+def random_predict(model_name: str = Query("logreg", description="Назва моделі: logreg або transformer")):
     ml_model = get_model(model_name)
 
     if not ml_model.is_trained():
@@ -200,7 +201,7 @@ def random_predict(model_name: str = Query("logreg", description="Назва м�
 
 # ====== Interpretability ======
 @app.post("/interpret/{method}")
-def interpret(method: str, news_id: int, model_name: str = Query("logreg")):
+def interpret(method: str, news_id: int, model_name: str = Query("logreg", description="Назва моделі: logreg або transformer")):
     ml_model = get_model(model_name)
     engine = create_engine("postgresql+psycopg2://postgres:100317@db/fakenewsdb")
 
@@ -225,7 +226,7 @@ def interpret(method: str, news_id: int, model_name: str = Query("logreg")):
 
 # ====== Visualization ======
 @app.get("/visualize/{method}")
-def visualize(method: str, model_name: str = Query("logreg")):
+def visualize(method: str, model_name: str = Query("logreg", description="Назва моделі: logreg або transformer")):
     method_clean = method.replace('"', '').strip().upper()
 
     if method_clean not in ["TSNE", "UMAP"]:
