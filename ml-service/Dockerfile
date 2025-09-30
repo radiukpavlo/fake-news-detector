@@ -1,14 +1,18 @@
-FROM python:3.13-slim
+# Use the official Python image
+FROM python:3.9-slim
 
+# Set the working directory
 WORKDIR /app
 
-COPY app/requirements.txt .
-
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/ ./app
-COPY start.sh .
-RUN chmod +x start.sh
+# Copy the rest of the application code
+COPY . .
 
-EXPOSE 8000
-CMD ["./start.sh"]
+# Make the start script executable
+RUN chmod +x /app/start.sh
+
+# Set the entrypoint to the start script
+ENTRYPOINT ["/app/start.sh"]
